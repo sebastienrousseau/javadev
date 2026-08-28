@@ -2,18 +2,32 @@
 # javadev Containerfile — OCI, builds with Docker AND Podman.
 # SPDX-License-Identifier: MIT
 #
-# Multi-stage, hardened, ultra-small Java dev image on the langdev core.
-# The `toolchain` stage fetches + checksum-verifies the build tools (Maven,
-# Gradle) and the LSP/formatter (Eclipse JDT LS, google-java-format) into a
-# single relocatable prefix; the `final` stage installs the musl OpenJDK from
-# Alpine and copies that prefix in. Everything between the "COMMON BASE" banner
-# and here is identical across the suite (kept in sync via `make sync-common`).
+# Multi-stage, hardened, ultra-small Java dev image on the langdev v2
+# foundation. The `toolchain` stage fetches + checksum-verifies the build tools
+# (Maven, Gradle) and the LSP/formatter (Eclipse JDT LS, google-java-format)
+# into a single relocatable prefix; the `final` stage installs the musl OpenJDK
+# from Alpine and copies that prefix in.
+#
+# The developer environment (shell, editor, tmux) is the USER'S OWN
+# chezmoi-managed dotfiles, cloned + applied at build time (latest by default;
+# pin with DOTFILES_REF). Everything between the "COMMON BASE" banner and here
+# is identical across the suite (kept in sync via `make sync-common`). javadev
+# adds only the Java toolchain + a single nvim/plugins.local/lang.lua LSP spec.
 #
 # Pin the base by DIGEST. Update via `make bump-base` (looks up the
 # current digest for the tag and rewrites the two lines below).
 ARG ALPINE_VERSION=3.22
 # renovate: datasource=docker depName=alpine
 ARG ALPINE_DIGEST=sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# Dotfiles source — "always the latest" by default; pin a tag/commit for
+# reproducible builds.
+ARG DOTFILES_REPO=https://github.com/sebastienrousseau/dotfiles.git
+ARG DOTFILES_REF=main
 
 ###############################################################################
 # Stage: toolchain  (LANGUAGE-SPECIFIC — Java build tools + LSP + formatter)
@@ -146,87 +160,79 @@ EOF
 RUN chmod 0755 "${TOOLCHAIN}/bin/jdtls" "${TOOLCHAIN}/bin/google-java-format"
 
 ###############################################################################
-# Stage: nvim-build  (COMMON — bakes the editor + plugins into the image)
-#   Runs Neovim headless to install the exact plugin set from lazy-lock.json,
-#   so the runtime image needs NO network on first launch.
+# Stage: env-build  (COMMON — apply the user's dotfiles + bake nvim plugins)
 ###############################################################################
-FROM alpine:${ALPINE_VERSION}@${ALPINE_DIGEST} AS nvim-build
-ARG USERNAME=dev
-ARG USER_UID=1000
-ARG USER_GID=1000
+FROM alpine:${ALPINE_VERSION}@${ALPINE_DIGEST} AS env-build
+ARG USERNAME USER_UID USER_GID DOTFILES_REPO DOTFILES_REF
+# Tools needed to clone+apply dotfiles and compile/install nvim plugins.
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
-      bash ca-certificates curl git \
-      neovim ripgrep fd \
+      bash ca-certificates chezmoi curl git \
+      neovim ripgrep fd fzf bat \
       build-base cmake
-# LazyVim starter pinned to a commit (reproducible); overridable at build.
-ARG LAZYVIM_STARTER_REF=c31e5cc9f77b16d20a693c30f28fdf907f1caf95
-ENV XDG_CONFIG_HOME=/root/.config \
-    XDG_DATA_HOME=/root/.local/share \
-    XDG_STATE_HOME=/root/.local/state \
-    XDG_CACHE_HOME=/root/.cache
-RUN git clone --filter=blob:none https://github.com/LazyVim/starter /root/.config/nvim \
- && git -C /root/.config/nvim checkout "${LAZYVIM_STARTER_REF}" \
- && rm -rf /root/.config/nvim/.git
-# Common + language plugin specs (language repo adds lang.lua before build).
-COPY common/nvim/plugins/ /root/.config/nvim/lua/plugins/
-COPY nvim/plugins/ /root/.config/nvim/lua/plugins/
-# Reproducible plugin set: restore from committed lockfile, then sync.
-COPY nvim/lazy-lock.json /root/.config/nvim/lazy-lock.json
+RUN addgroup -g "${USER_GID}" "${USERNAME}" \
+ && adduser -D -u "${USER_UID}" -G "${USERNAME}" -s /bin/bash "${USERNAME}"
+COPY --chown=${USER_UID}:${USER_GID} common/bootstrap-dotfiles.sh /usr/local/bin/langdev-bootstrap-dotfiles
+RUN chmod 0755 /usr/local/bin/langdev-bootstrap-dotfiles
+USER ${USERNAME}
+ENV HOME=/home/${USERNAME}
+# 1) Clone + chezmoi-apply the user's dotfiles (brings bashrc, tmux, nvim…).
+RUN DOTFILES_REPO="${DOTFILES_REPO}" DOTFILES_REF="${DOTFILES_REF}" \
+      langdev-bootstrap-dotfiles
+# 2) Drop the language LSP spec into the dotfiles' nvim (auto-imported via
+#    the config's `plugins.local`), then bake the full plugin set headless
+#    so the runtime needs no network on first launch.
+COPY --chown=${USER_UID}:${USER_GID} nvim/plugins.local/ /home/${USERNAME}/.config/nvim/lua/plugins.local/
 RUN nvim --headless "+Lazy! restore" +qa 2>&1 | tail -n 5 || true \
- && nvim --headless "+TSUpdateSync" +qa 2>&1 | tail -n 5 || true
+ && nvim --headless "+Lazy! sync"    +qa 2>&1 | tail -n 5 || true \
+ && nvim --headless "+TSUpdateSync"  +qa 2>&1 | tail -n 5 || true
 
 ###############################################################################
 #                              COMMON BASE
 ###############################################################################
 FROM alpine:${ALPINE_VERSION}@${ALPINE_DIGEST} AS base
-
-ARG USERNAME=dev
-ARG USER_UID=1000
-ARG USER_GID=1000
+ARG USERNAME USER_UID USER_GID
 
 LABEL org.opencontainers.image.title="javadev" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="Sebastien Rousseau"
 
-# Minimal, pinned runtime. `tini` is the init (compose sets init:true, but
-# shipping it keeps `docker run` correct too). Versions are pinned by the
-# digest-locked Alpine repository for this release.
+# Runtime deps: editor, multiplexer (tmux — available by default), and the
+# CLI tools the dotfiles expect. `tini` is PID 1 (compose sets init:true).
 # hadolint ignore=DL3018
 RUN apk add --no-cache \
       bash \
+      bat \
       ca-certificates \
+      chezmoi \
       curl \
+      fd \
+      fzf \
       git \
       less \
       neovim \
       ripgrep \
-      fd \
       tini \
+      tmux \
       tzdata \
+      zoxide \
  && update-ca-certificates
 
-# Non-root user with a real home.
 RUN addgroup -g "${USER_GID}" "${USERNAME}" \
  && adduser -D -u "${USER_UID}" -G "${USERNAME}" -s /bin/bash "${USERNAME}"
 
-# Portable dotfiles.
-COPY --chown=${USER_UID}:${USER_GID} common/dotfiles/bashrc        /home/${USERNAME}/.bashrc
-COPY --chown=${USER_UID}:${USER_GID} common/dotfiles/bash_profile  /home/${USERNAME}/.bash_profile
-COPY --chown=${USER_UID}:${USER_GID} common/dotfiles/bash_aliases  /home/${USERNAME}/.bash_aliases
+# Bring in the fully-populated home from env-build: the applied dotfiles
+# (~/.bashrc, ~/.config/tmux, ~/.config/nvim, ~/.config/shell/*, …) plus the
+# baked nvim plugin set. One COPY captures everything chezmoi wrote.
+COPY --from=env-build --chown=${USER_UID}:${USER_GID} /home/${USERNAME} /home/${USERNAME}
 
-# Editor + baked-in plugins from the nvim-build stage.
-COPY --from=nvim-build --chown=${USER_UID}:${USER_GID} /root/.config/nvim /home/${USERNAME}/.config/nvim
-COPY --from=nvim-build --chown=${USER_UID}:${USER_GID} /root/.local/share/nvim /home/${USERNAME}/.local/share/nvim
-
-# Entrypoint.
+# Entrypoint (tmux-loading, strict-mode).
 COPY common/entrypoint.sh /usr/local/bin/langdev-entrypoint
 RUN chmod 0755 /usr/local/bin/langdev-entrypoint \
  && mkdir -p /usr/local/lib/langdev
 
 # --- Hardening ---------------------------------------------------------------
-# Sticky bit preserved (1777, NOT 777). Remove any setuid/setgid bits so no
-# privilege escalation vector survives. No `chattr` theatre (no-op in a
-# container). No account-lock theatre — we simply run as an unprivileged user.
+# Sticky bit preserved (1777, NOT 777). Strip setuid/setgid bits everywhere.
 RUN chmod 1777 /tmp \
  && find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec chmod -s {} + 2>/dev/null || true
 
@@ -267,13 +273,20 @@ RUN apk add --no-cache "openjdk21=21.0.11_p10-r0" \
 # Relocatable Java build tools + LSP + formatter, checksum-verified upstream.
 COPY --from=toolchain --chown=1000:1000 /opt/langdev/toolchain /opt/langdev/toolchain
 
-# Language shell fragment: JAVA_HOME + PATH (jdk/maven/gradle/toolchain bin) +
-# aliases for the installed tools only.
-COPY --chown=1000:1000 dotfiles.d/java.sh /home/dev/.bashrc.d/java.sh
+# Language env for LOGIN shells: JAVA_HOME + PATH (jdk/maven/gradle/toolchain
+# bin) + aliases for the installed tools only. Installed root-owned (0644) to
+# /etc/profile.d (sourced via /etc/profile) — deliberately kept OUT of the
+# user's chezmoi dotfiles so those stay pristine and langdev-agnostic.
+COPY dotfiles.d/java.sh /etc/profile.d/java.sh
+RUN chmod 0644 /etc/profile.d/java.sh
 
 USER dev
 
-# java, javac, mvn, gradle, jdtls and google-java-format are all on PATH.
+# java, javac, mvn, gradle, jdtls and google-java-format are all on PATH. These
+# ENV values duplicate the /etc/profile.d fragment so non-login one-shot
+# commands (e.g. `make run CMD="mvn -version"`, which do not source /etc/profile)
+# still resolve the toolchain. The profile.d fragment is PATH-idempotent, so the
+# two never conflict or duplicate entries.
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk \
     MAVEN_HOME=/opt/langdev/toolchain/maven \
     GRADLE_HOME=/opt/langdev/toolchain/gradle \

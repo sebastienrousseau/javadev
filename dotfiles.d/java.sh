@@ -1,11 +1,14 @@
-# ~/.bashrc.d/java.sh — Java language fragment (javadev)
+# /etc/profile.d/java.sh — Java language fragment (javadev)
 # SPDX-License-Identifier: MIT
 #
-# Sourced by the common ~/.bashrc for interactive shells. Sets the Java
-# environment for the pre-installed, musl OpenJDK plus the relocatable Maven /
-# Gradle / jdtls / google-java-format toolchain, and adds a few aliases ONLY
-# for tools that are actually installed in the image (java, javac, mvn,
-# gradle). No host PATH is propagated.
+# Installed root-owned (0644) to /etc/profile.d so it is sourced by LOGIN
+# shells via /etc/profile — kept OUT of the user's chezmoi dotfiles so those
+# stay pristine and langdev-agnostic. Sets the Java environment for the
+# pre-installed, musl OpenJDK plus the relocatable Maven / Gradle / jdtls /
+# google-java-format toolchain, and adds a few aliases ONLY for tools that are
+# actually installed in the image (java, javac, mvn, gradle). No host PATH is
+# propagated. (For non-login one-shot commands, the same JAVA_HOME/MAVEN_HOME/
+# GRADLE_HOME/PATH are also baked as ENV in the Containerfile's final stage.)
 
 # musl OpenJDK (installed via apk) + relocatable build tools (copied prefix).
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk

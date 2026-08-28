@@ -8,9 +8,17 @@ a complete, batteries-included Java toolchain inside a container you can
 Podman (Linux, macOS, Windows/WSL2).
 
 It ships Alpine's **musl-native OpenJDK 21 (LTS)** plus pinned **Maven**
-and **Gradle**, and a pre-configured Neovim (LazyVim) with the LSP wired
-to a build-time **Eclipse JDT Language Server** and **google-java-format**.
-No network is needed on first launch.
+and **Gradle**, with the Java LSP wired to a build-time **Eclipse JDT
+Language Server** and **google-java-format**. No network is needed on
+first launch.
+
+The developer environment **is the user's own chezmoi-managed dotfiles**
+(shell, aliases, **tmux**, Neovim) — cloned and applied at build time
+(latest by default; pin with the `DOTFILES_REF` build arg). javadev adds
+only a thin Java toolchain and a single `nvim/plugins.local/lang.lua` LSP
+spec that the dotfiles' Neovim auto-imports. **tmux is loaded by
+default** (the entrypoint attaches to a persistent `langdev` session; opt
+out with `LANGDEV_NO_TMUX=1`).
 
 ## Quick start
 
@@ -33,7 +41,8 @@ ephemeral (read-only rootfs + tmpfs), so a container is truly disposable.
 | Gradle | `9.7.1` | `GRADLE_VERSION`; `-bin.zip` **sha256**-verified against `services.gradle.org` |
 | Eclipse JDT LS (`jdtls`) | `1.60.0` (build `202606262232`) | `JDTLS_VERSION`/`JDTLS_BUILD`; tarball **sha256**-verified |
 | google-java-format | `1.36.1` | `GJF_VERSION`; all-deps jar **sha256**-verified |
-| Neovim plugins | — | `nvim/lazy-lock.json` (regenerate with `make lock`/CI) |
+| Dotfiles (shell/tmux/nvim) | latest `main` | `DOTFILES_REPO`/`DOTFILES_REF` build args; pin a tag/commit for reproducible builds |
+| Neovim plugins | — | baked headless at build time from the dotfiles' own `lazy-lock.json` |
 
 The build tools and LSP are fetched + checksum-verified in a separate
 `toolchain` stage; only the relocatable prefix (`/opt/langdev/toolchain`)
@@ -41,10 +50,12 @@ is copied into the final image — `curl`, `unzip` and other fetch tooling
 never reach the runtime layer. The JDK is the one genuine runtime
 dependency and is installed directly from Alpine's musl OpenJDK.
 
-> **Neovim lockfile bootstrap:** `nvim/lazy-lock.json` is committed as
-> `{}` to bootstrap the build. The first CI image build (or a local
-> `nvim --headless +"Lazy! sync"`) regenerates the fully pinned lockfile;
-> commit the result to freeze the exact plugin set.
+> **Dotfiles & reproducibility:** the shell/tmux/Neovim config is cloned
+> from the user's chezmoi dotfiles repo at build time — **latest `main`**
+> by default. For a fully reproducible image, pin the exact commit with
+> `--build-arg DOTFILES_REF=<sha>` (the applied commit is also recorded at
+> `~/.dotfiles.commit` inside the image). The Neovim plugin set is baked
+> headless during the build, so first launch needs no network.
 
 > **Bumping the JDK pin:** the exact `openjdk21` build floats within the
 > Alpine v3.22 repo as security updates land. If a build fails because the
@@ -71,11 +82,13 @@ mount flags for Podman) so the same commands work with either engine.
 
 ## Aliases
 
-Provided by `common/dotfiles/bash_aliases` (language-agnostic) and
-`dotfiles.d/java.sh` (Java-specific), both sourced by the interactive
-shell.
+Language-agnostic aliases and shell setup come from the **user's own
+dotfiles** (applied at build time). The Java-specific fragment
+`dotfiles.d/java.sh` is installed root-owned (`0644`) to
+`/etc/profile.d/java.sh`, so it is sourced by login shells via
+`/etc/profile` — kept OUT of the user's dotfiles so those stay pristine.
 
-### Java (`dotfiles.d/java.sh`)
+### Java (`/etc/profile.d/java.sh`)
 
 | Alias | Expands to |
 |---|---|
@@ -88,20 +101,27 @@ shell.
 | `gwt` | `gradle test` |
 | `gjf` | `google-java-format` |
 
-`dotfiles.d/java.sh` also exports `JAVA_HOME`, `MAVEN_HOME`, `GRADLE_HOME`
-and prepends the JDK, Maven, Gradle and toolchain-launcher `bin` dirs to
-`PATH`. It does **not** propagate any host `PATH`.
+`java.sh` also exports `JAVA_HOME`, `MAVEN_HOME`, `GRADLE_HOME` and
+prepends the JDK, Maven, Gradle and toolchain-launcher `bin` dirs to
+`PATH` (idempotently). It does **not** propagate any host `PATH`. The same
+`JAVA_HOME`/`MAVEN_HOME`/`GRADLE_HOME`/`PATH` are also baked as `ENV` in
+the Containerfile so non-login one-shot commands (e.g.
+`make run CMD="mvn -version"`) resolve the toolchain too.
 
 ## Neovim
 
-- LazyVim starter, pinned by commit and baked in at build time.
-- Java is configured through `nvim-lspconfig` in `nvim/plugins/lang.lua`,
-  pointed at the build-time `jdtls` launcher on `PATH`. For a richer
-  experience (test/debug codelenses, refactors) swap in
-  `mfussenegger/nvim-jdtls` against the same launcher.
-- Treesitter grammar `java` is added on top of the common set.
-- **Mason is intentionally disabled** — the LSP is installed at build time,
-  so first launch needs no network and the image stays reproducible.
+- The Neovim config is the **user's own dotfiles' nvim** (applied at build
+  time); it is authoritative. javadev drops **one** spec,
+  `nvim/plugins.local/lang.lua`, into the dotfiles' `plugins.local`
+  convention (auto-imported) to wire the Java LSP. Plugins are baked
+  headless at build time, so first launch needs no network.
+- Java is configured through `nvim-lspconfig` in
+  `nvim/plugins.local/lang.lua`, pointed at the build-time `jdtls`
+  launcher on `PATH`. For a richer experience (test/debug codelenses,
+  refactors) swap in `mfussenegger/nvim-jdtls` against the same launcher.
+- Treesitter grammar `java` is added on top of the dotfiles' set.
+- **Mason is left disabled** — the LSP is installed at build time, so
+  first launch needs no network and the image stays reproducible.
 
 `jdtls` runs against the pre-installed JDK via a small POSIX-sh launcher
 (no Python needed). On the read-only rootfs it uses the bundled
