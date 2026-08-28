@@ -1,5 +1,5 @@
 -- javadev — Java language wiring for Neovim (langdev lang.lua)
--- SPDX-License-Identifier: MIT
+-- SPDX-License-Identifier: Apache-2.0 OR MIT
 --
 -- The Eclipse JDT Language Server (jdtls) is installed at BUILD time by the
 -- toolchain stage and exposed on PATH via the `jdtls` launcher (a POSIX-sh

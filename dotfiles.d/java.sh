@@ -1,5 +1,5 @@
 # /etc/profile.d/java.sh — Java language fragment (javadev)
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 #
 # Installed root-owned (0644) to /etc/profile.d so it is sourced by LOGIN
 # shells via /etc/profile — kept OUT of the user's chezmoi dotfiles so those
