@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # /etc/profile.d/java.sh — Java language fragment (javadev)
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 #
