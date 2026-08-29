@@ -13,22 +13,42 @@
       <a class="btn btn-secondary btn-lg" href="https://github.com/sebastienrousseau/{{name}}" target="_blank" rel="noopener">Star on GitHub</a>
     </div>
 
-    <!-- Realistic Animated Terminal IDE & MCP Session -->
-    <figure class="mcp-term">
-      <figcaption class="mcp-term-bar">
-        <span class="mcp-term-dot dot-red" aria-hidden="true"></span>
-        <span class="mcp-term-dot dot-yellow" aria-hidden="true"></span>
-        <span class="mcp-term-dot dot-green" aria-hidden="true"></span>
-        <span class="mcp-term-title">Terminal · {{name}} stdio &amp; TMUX IDE</span>
+    <!-- Authentic Code & Terminal IDE Preview -->
+    <figure class="terminal-preview-card">
+      <figcaption class="terminal-header">
+        <div class="window-dots">
+          <span class="dot dot-red" aria-hidden="true"></span>
+          <span class="dot dot-yellow" aria-hidden="true"></span>
+          <span class="dot dot-green" aria-hidden="true"></span>
+        </div>
+        <div class="terminal-tab-bar">
+          <span class="tab-item active-tab font-mono">src/main/java/dev/App.java</span>
+          <span class="tab-item font-mono">terminal</span>
+        </div>
+        <div class="terminal-actions">
+          <span class="badge-status font-mono">● Java 21 LTS + Maven + JDTLS</span>
+        </div>
       </figcaption>
-      <pre class="mcp-term-body"><code><span class="mcp-tl mcp-tl-cmd mcp-tl-typed mcp-tl-t1"><span class="mcp-tl-ps" aria-hidden="true">$ </span>make up</span>
-<span class="mcp-tl mcp-tl-out mcp-tl-fade mcp-tl-f2">[OK] javadev ready &lt; 500ms · OpenJDK 21, Maven 3.9, Gradle 8, JDTLS active</span>
-<span class="mcp-tl mcp-tl-cmd mcp-tl-typed mcp-tl-t3"><span class="mcp-tl-ps" aria-hidden="true">$ </span>claude mcp add {{name}} -- docker exec -i {{name}} /usr/local/bin/mcp-server</span>
-<span class="mcp-tl mcp-tl-out mcp-tl-fade mcp-tl-f4">{{name}}-mcp · connected (stdio JSON-RPC 2.0)</span>
-<span class="mcp-tl mcp-tl-ask mcp-tl-typed mcp-tl-t5"><span class="mcp-tl-ps" aria-hidden="true">&gt; </span>Run mvn clean test and check ArchUnit rules.</span>
-<span class="mcp-tl mcp-tl-out mcp-tl-fade mcp-tl-f6">dispatched: mvn clean test &amp;&amp; mvn spotbugs:check</span>
-<span class="mcp-tl mcp-tl-ok mcp-tl-fade mcp-tl-f7">✓ BUILD SUCCESS · 100% tests passed in 0.42s</span>
-<span class="mcp-tl mcp-tl-caret" aria-hidden="true"></span></code></pre>
+      <div class="terminal-editor-pane">
+        <pre class="editor-code font-mono"><code><span class="code-comment">// src/main/java/dev/App.java · Java 21 LTS Pattern Matching</span>
+<span class="code-kw">public sealed interface</span> <span class="code-type">Task</span> <span class="code-kw">permits</span> <span class="code-type">Query</span>, <span class="code-type">Mutation</span> {
+    <span class="code-kw">record</span> <span class="code-type">Query</span>(<span class="code-type">String</span> id, <span class="code-type">Instant</span> timestamp) <span class="code-kw">implements</span> <span class="code-type">Task</span> {}
+    <span class="code-kw">record</span> <span class="code-type">Mutation</span>(<span class="code-type">String</span> id, <span class="code-type">byte</span>[] payload) <span class="code-kw">implements</span> <span class="code-type">Task</span> {}
+
+    <span class="code-kw">static</span> <span class="code-type">String</span> <span class="code-fn">describe</span>(<span class="code-type">Task</span> t) {
+        <span class="code-kw">return switch</span> (t) {
+            <span class="code-kw">case</span> <span class="code-type">Query</span>(<span class="code-kw">var</span> id, <span class="code-kw">var</span> ts) -&gt; <span class="code-str">"Query "</span> + id + <span class="code-str">" @ "</span> + ts;
+            <span class="code-kw">case</span> <span class="code-type">Mutation</span>(<span class="code-kw">var</span> id, _)   -&gt; <span class="code-str">"Mutation "</span> + id;
+        };
+    }
+}</code></pre>
+      </div>
+      <div class="terminal-cli-pane font-mono">
+        <div class="cli-line"><span class="mcp-tl-ps">$ </span>mvn clean test &amp;&amp; mvn spotbugs:check</div>
+        <div class="cli-out">[INFO] Tests run: 24, Failures: 0, Errors: 0, Time elapsed: 0.312 s</div>
+        <div class="cli-line"><span class="mcp-tl-ask">&gt; </span>Claude MCP: Check ArchUnit architecture rules and JDTLS symbols</div>
+        <div class="cli-out cli-ok">✓ BUILD SUCCESS · OpenJDK 21 LTS · JDTLS Language Server active</div>
+      </div>
     </figure>
   </div>
 </section>
