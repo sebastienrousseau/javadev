@@ -1,7 +1,7 @@
 site_name = "javadev"
 site_title = "javadev — Portable, Hardened Java 21+ AI Developer Container"
 site_description = "Enterprise Java container preloaded with OpenJDK 21, Maven, Gradle, JDTLS language server, 4-pane TMUX IDE, and stdio Model Context Protocol (MCP) server."
-base_url = "https://sebastienrousseau.github.io/javadev/"
+base_url = "https://sebastienrousseau.com/javadev/"
 language = "en-GB"
 
 content_dir = "content"
