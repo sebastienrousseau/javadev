@@ -1,12 +1,12 @@
 ---
 layout: index
-title: javadev — Portable, Hardened Java 21+ AI Developer Container
-name: javadev
-headline: Hardened Java 21+ Development Container for AI Agents
-lead: Enterprise Java container preloaded with OpenJDK 21, Maven, Gradle, JDTLS language server, 4-pane TMUX IDE, and stdio Model Context Protocol (MCP) server.
-permalink: /
-language: en-GB
-date: 2026-08-29
+title: "javadev — Portable, Hardened Java 21+ AI Developer Container"
+name: "javadev"
+headline: "Hardened Java 21+ Development Container for AI Agents"
+lead: "Enterprise Java container preloaded with OpenJDK 21, Maven, Gradle, JDTLS language server, 4-pane TMUX IDE, and stdio Model Context Protocol (MCP) server."
+permalink: "/"
+language: "en-GB"
+date: "2026-08-29"
 ---
 
 <section id="overview" class="section">
