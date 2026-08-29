@@ -142,7 +142,7 @@ make mosh</code></pre>
 <section id="faq" class="section">
   <div class="container narrow">
     <h2 class="section-title text-center">Frequently Asked Questions</h2>
-    <div class="stack" style="display:flex; flex-direction:column; gap:1.5rem; margin-top:2rem;">
+    <div class="faq-stack">
       <div class="card">
         <h3>Does it support both Maven and Gradle?</h3>
         <p>Yes. Both latest Gradle and Apache Maven distributions are pre-installed and available on PATH.</p>
